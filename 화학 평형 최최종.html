@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>르샤틀리에 원리 - 화학 평형 시뮬레이션</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 15px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 12px;
+            font-size: 1.6em;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr 360px;
+            gap: 15px;
+        }
+        .panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .panel h3 {
+            margin-bottom: 10px;
+            color: #4facfe;
+            font-size: 0.95em;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 6px;
+        }
+        .reaction-display {
+            text-align: center;
+            font-size: 1.3em;
+            padding: 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+        .reaction-display .A { color: #4facfe; }
+        .reaction-display .B { color: #fe4f4f; }
+        .reaction-display .heat { color: #ffcc00; }
+        .reaction-display .arrow { color: #fff; margin: 0 6px; }
+        .activation-display {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+        .activation-title {
+            font-size: 0.85em;
+            color: #4facfe;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .activation-row {
+            font-size: 0.8em;
+            color: #ddd;
+            margin: 3px 0;
+        }
+        .activation-row span {
+            color: #fff;
+            font-weight: bold;
+        }
+        .control-group {
+            margin-bottom: 12px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.8em;
+            color: #aaa;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 3px;
+        }
+        .control-value {
+            text-align: right;
+            font-size: 0.85em;
+            color: #4facfe;
+            font-weight: bold;
+        }
+        .btn-group {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .btn {
+            padding: 7px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn-blue { background: #4facfe; color: #fff; }
+        .btn-red { background: #fe4f4f; color: #fff; }
+        .btn:hover { transform: scale(1.05); }
+        .btn-reset {
+            background: #ffa500;
+            color: #fff;
+            flex: 1;
+            padding: 10px;
+        }
+        .btn-play {
+            flex: 1;
+            padding: 10px;
+            font-size: 0.9em;
+        }
+        .btn-play.paused { background: #4CAF50; color: #fff; }
+        .btn-play.playing { background: #f44336; color: #fff; }
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 8px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+            color: #ddd;
+        }
+        .canvas-container {
+            position: relative;
+            background: #0a0a1a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        #simCanvas {
+            display: block;
+            width: 100%;
+            height: 450px;
+        }
+        .stats-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.75);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.85em;
+        }
+        .stats-overlay div { margin: 3px 0; }
+        .k-value {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(79, 172, 254, 0.2);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            font-weight: bold;
+            border: 2px solid #4facfe;
+        }
+        .status-badge {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75);
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .status-badge.paused { color: #ffa500; }
+        .status-badge.playing { color: #4CAF50; }
+        .graphs-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .graph-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 8px;
+            flex: 1;
+        }
+        .graph-container h4 {
+            font-size: 0.8em;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+        .graph-canvas {
+            width: 100%;
+            height: 120px;
+        }
+        .legend {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 4px;
+            font-size: 0.7em;
+        }
+        .legend span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            font-size: 0.75em;
+            line-height: 1.1;
+            margin: 0 2px;
+        }
+        .fraction .top {
+            border-bottom: 1px solid #aaa;
+            padding: 0 3px 1px;
+        }
+        .fraction .bottom {
+            padding: 1px 3px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 르샤틀리에 원리 - 화학 평형 시뮬레이션</h1>
+        
+        <div class="main-layout">
+            <!-- 왼쪽 컨트롤 패널 -->
+            <div class="panel">
+                <div class="reaction-display" id="reactionDisplay">
+                    <span class="A">2A</span>
+                    <span class="arrow">⇄</span>
+                    <span class="B">2B</span>
+                    <span class="heat">+ 열</span>
+                </div>
+                
+                <div class="activation-display" id="activationDisplay">
+                    <div class="activation-title">활성화 에너지</div>
+                    <div class="activation-row">정반응 E<sub>a</sub> = <span id="forwardEa">30</span></div>
+                    <div class="activation-row">역반응 E<sub>a</sub> = <span id="reverseEa">70</span></div>
+                </div>
+                
+                <h3>⚙️ 반응 종류</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="reactionType" value="exothermic" checked>
+                        발열 반응
+                    </label>
+                    <label>
+                        <input type="radio" name="reactionType" value="endothermic">
+                        흡열 반응
+                    </label>
+                </div>
+                
+                <h3>🌡️ 온도</h3>
+                <div class="control-group">
+                    <input type="range" id="temperature" min="100" max="600" value="300" step="10">
+                    <div class="control-value"><span id="tempValue">300</span> K</div>
+                </div>
+                
+                <h3>🔵 A 입자</h3>
+                <div class="btn-group">
+                    <button class="btn btn-blue" onclick="addParticles('A', 10)">A +10</button>
+                    <button class="btn btn-blue" onclick="removeParticles('A', 10)">A -10</button>
+                </div>
+                
+                <h3>🔴 B 입자</h3>
+                <div class="btn-group">
+                    <button class="btn btn-red" onclick="addParticles('B', 10)">B +10</button>
+                    <button class="btn btn-red" onclick="removeParticles('B', 10)">B -10</button>
+                </div>
+
+                <!-- 부피 조절 슬라이더 (새로 추가된 부분) -->
+                <h3>📦 용기 부피</h3>
+                <div class="control-group">
+                    <input type="range" id="volumeSlider" min="30" max="100" value="100" step="1">
+                    <div class="control-value"><span id="volumeValue">100</span> %</div>
+                </div>
+                
+                <div class="control-buttons">
+                    <button class="btn btn-play paused" id="playBtn" onclick="togglePlay()">▶ 재생</button>
+                    <button class="btn btn-reset" onclick="resetSimulation()">🔄 초기화</button>
+                </div>
+            </div>
+            
+            <!-- 중앙 시뮬레이션 -->
+            <div class="canvas-container">
+                <canvas id="simCanvas"></canvas>
+                <div class="stats-overlay">
+                    <div>🔵 A: <span id="countA">200</span>개</div>
+                    <div>🔴 B: <span id="countB">0</span>개</div>
+                    <div>총: <span id="totalCount">200</span>개</div>
+                </div>
+                <div class="k-value">K = <span id="kValue">0.00</span></div>
+                <div class="status-badge paused" id="statusBadge">⏸ 정지</div>
+            </div>
+            
+            <!-- 오른쪽 그래프 패널 -->
+            <div class="panel graphs-panel">
+                <div class="graph-container">
+                    <h4>📈 평형상수 K  <span style="font-size: 1.1em;">(</span><span class="fraction"><span class="top">[B]</span><span class="bottom">[A]</span></span><span style="font-size: 1.1em;">)</span></h4>
+                    <canvas id="graphK" class="graph-canvas"></canvas>
+                </div>
+                
+                <div class="graph-container">
+                    <h4>📊 입자 수</h4>
+                    <canvas id="graphParticles" class="graph-canvas"></canvas>
+                    <div class="legend">
+                        <span><div class="legend-dot" style="background: #4facfe;"></div> A</span>
+                        <span><div class="legend-dot" style="background: #fe4f4f;"></div> B</span>
+                    </div>
+                </div>
+                
+                <div class="graph-container">
+                    <h4>⚡ 활성화 에너지를 넘을 확률</h4>
+                    <canvas id="graphProb" class="graph-canvas"></canvas>
+                    <div class="legend">
+                        <span><div class="legend-dot" style="background: #4facfe;"></div> A</span>
+                        <span><div class="legend-dot" style="background: #fe4f4f;"></div> B</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 캔버스 설정 =====
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = 450;
+            clampParticlesToBounds();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ===== 상수 및 변수 =====
+        const PARTICLE_RADIUS = 3;
+        const COOLDOWN_TIME = 2000;
+        
+        let particles = [];
+        let isExothermic = true;
+        let temperature = 300;
+        let volume = 100; // 용기 부피 (%)
+        let isPlaying = false;
+        
+        // 활성화 에너지 (고정)
+        let forwardEa = 30;  // 정반응 활성화 에너지
+        let reverseEa = 70;  // 역반응 활성화 에너지
+        
+        // 운동 에너지 난수 범위
+        let rangeA = { min: 6, max: 40 };
+        let rangeB = { min: 23, max: 90 };
+        
+        // 이동 평균
+        const MOVING_AVG_FRAMES = 120;
+        let historyA = [];
+        let historyB = [];
+        let historyK = [];
+        
+        // 그래프 데이터
+        const GRAPH_POINTS = 400;
+        let graphDataK = [];
+        let graphDataA = [];
+        let graphDataB = [];
+        let graphDataProbA = [];
+        let graphDataProbB = [];
+        
+        // ===== 온도별 난수 범위 테이블 =====
+        const energyRangeTable = {
+            exothermic: {
+                A: { 100: [1,100], 200: [5,50], 300: [6,40], 400: [0,37], 500: [0,33], 600: [0,31] },
+                B: { 100: [7,73], 200: [10,85], 300: [23,90], 400: [34,100], 500: [50,100], 600: [63,100] }
+            },
+            endothermic: {
+                A: { 100: [7,73], 200: [10,85], 300: [23,90], 400: [34,100], 500: [50,100], 600: [63,100] },
+                B: { 100: [1,100], 200: [5,50], 300: [6,40], 400: [0,37], 500: [0,33], 600: [0,31] }
+            }
+        };
+        
+        function lerp(t, t1, t2, v1, v2) {
+            if (t <= t1) return v1;
+            if (t >= t2) return v2;
+            return v1 + (v2 - v1) * (t - t1) / (t2 - t1);
+        }
+        
+        function getEnergyRange(temp) {
+            const type = isExothermic ? 'exothermic' : 'endothermic';
+            const tableA = energyRangeTable[type].A;
+            const tableB = energyRangeTable[type].B;
+            const temps = [100, 200, 300, 400, 500, 600];
+            
+            let t1 = 100, t2 = 200;
+            for (let i = 0; i < temps.length - 1; i++) {
+                if (temp >= temps[i] && temp <= temps[i + 1]) {
+                    t1 = temps[i];
+                    t2 = temps[i + 1];
+                    break;
+                }
+            }
+            
+            if (temp <= 100) {
+                return {
+                    A: { min: tableA[100][0], max: tableA[100][1] },
+                    B: { min: tableB[100][0], max: tableB[100][1] }
+                };
+            } else if (temp >= 600) {
+                return {
+                    A: { min: tableA[600][0], max: tableA[600][1] },
+                    B: { min: tableB[600][0], max: tableB[600][1] }
+                };
+            } else {
+                return {
+                    A: {
+                        min: Math.round(lerp(temp, t1, t2, tableA[t1][0], tableA[t2][0])),
+                        max: Math.round(lerp(temp, t1, t2, tableA[t1][1], tableA[t2][1]))
+                    },
+                    B: {
+                        min: Math.round(lerp(temp, t1, t2, tableB[t1][0], tableB[t2][0])),
+                        max: Math.round(lerp(temp, t1, t2, tableB[t1][1], tableB[t2][1]))
+                    }
+                };
+            }
+        }
+        
+        function updateReactionDisplay() {
+            const display = document.getElementById('reactionDisplay');
+            if (isExothermic) {
+                display.innerHTML = '<span class="A">2A</span><span class="arrow">⇄</span><span class="B">2B</span><span class="heat"> + 열</span>';
+                forwardEa = 30;
+                reverseEa = 70;
+            } else {
+                display.innerHTML = '<span class="A">2A</span><span class="heat"> + 열 </span><span class="arrow">⇄</span><span class="B">2B</span>';
+                forwardEa = 70;
+                reverseEa = 30;
+            }
+            document.getElementById('forwardEa').textContent = forwardEa;
+            document.getElementById('reverseEa').textContent = reverseEa;
+        }
+
+        // 부피 축소에 따른 입자 경계 제한 처리
+        function clampParticlesToBounds() {
+            const currentWidth = canvas.width * (volume / 100);
+            particles.forEach(p => {
+                if (p.x > currentWidth - PARTICLE_RADIUS) {
+                    p.x = currentWidth - PARTICLE_RADIUS - Math.random() * 2;
+                    if (p.vx > 0) p.vx = -p.vx;
+                }
+            });
+        }
+        
+        // ===== 입자 클래스 =====
+        class Particle {
+            constructor(type, x, y) {
+                const currentWidth = canvas.width * (volume / 100);
+                this.type = type;
+                this.x = x !== undefined ? x : Math.random() * (currentWidth - 40) + 20;
+                this.y = y !== undefined ? y : Math.random() * (canvas.height - 40) + 20;
+                
+                const speed = Math.sqrt(temperature / 300) * 2.5;
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                
+                this.createdAt = Date.now();
+                this.lastCollision = 0;
+                this.glowEffect = 0;
+            }
+            
+            update() {
+                const currentWidth = canvas.width * (volume / 100);
+                const targetSpeed = Math.sqrt(temperature / 300) * 2.5;
+                const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                
+                if (currentSpeed > 0.1) {
+                    const adj = 1 + (targetSpeed / currentSpeed - 1) * 0.02;
+                    this.vx *= adj;
+                    this.vy *= adj;
+                }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // 가변 부피(너비) 영역 내 벽 반사
+                if (this.x < PARTICLE_RADIUS) { this.x = PARTICLE_RADIUS; this.vx = Math.abs(this.vx); }
+                if (this.x > currentWidth - PARTICLE_RADIUS) { this.x = currentWidth - PARTICLE_RADIUS; this.vx = -Math.abs(this.vx); }
+                if (this.y < PARTICLE_RADIUS) { this.y = PARTICLE_RADIUS; this.vy = Math.abs(this.vy); }
+                if (this.y > canvas.height - PARTICLE_RADIUS) { this.y = canvas.height - PARTICLE_RADIUS; this.vy = -Math.abs(this.vy); }
+                
+                if (this.glowEffect > 0) this.glowEffect -= 0.015;
+            }
+            
+            draw() {
+                ctx.beginPath();
+                
+                if (this.glowEffect > 0) {
+                    ctx.save();
+                    ctx.shadowBlur = 25 * this.glowEffect;
+                    ctx.shadowColor = '#ffff00';
+                    
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, PARTICLE_RADIUS + 6 * this.glowEffect, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 0, ${0.6 * this.glowEffect})`;
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, PARTICLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = this.type === 'A' ? '#4facfe' : '#fe4f4f';
+                ctx.fill();
+            }
+            
+            canReact() {
+                const now = Date.now();
+                return (now - this.createdAt >= COOLDOWN_TIME) && (now - this.lastCollision >= COOLDOWN_TIME);
+            }
+            
+            distanceTo(other) {
+                const dx = this.x - other.x;
+                const dy = this.y - other.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+        }
+        
+        // ===== 초기화 =====
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < 200; i++) {
+                particles.push(new Particle('A'));
+            }
+            
+            historyA = [];
+            historyB = [];
+            historyK = [];
+            graphDataK = [];
+            graphDataA = [];
+            graphDataB = [];
+            graphDataProbA = [];
+            graphDataProbB = [];
+        }
+        
+        // ===== 충돌 처리 =====
+        function handleCollisions() {
+            const now = Date.now();
+            
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+                    const dist = p1.distanceTo(p2);
+                    
+                    if (dist < PARTICLE_RADIUS * 2) {
+                        // 탄성 충돌
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        
+                        if (dist > 0) {
+                            const nx = dx / dist;
+                            const ny = dy / dist;
+                            const dvx = p1.vx - p2.vx;
+                            const dvy = p1.vy - p2.vy;
+                            const dvn = dvx * nx + dvy * ny;
+                            
+                            if (dvn > 0) {
+                                p1.vx -= dvn * nx;
+                                p1.vy -= dvn * ny;
+                                p2.vx += dvn * nx;
+                                p2.vy += dvn * ny;
+                            }
+                            
+                            const overlap = PARTICLE_RADIUS * 2 - dist;
+                            if (overlap > 0) {
+                                p1.x -= overlap * nx * 0.5;
+                                p1.y -= overlap * ny * 0.5;
+                                p2.x += overlap * nx * 0.5;
+                                p2.y += overlap * ny * 0.5;
+                            }
+                        }
+                        
+                        // 쿨다운 체크
+                        if (!p1.canReact() || !p2.canReact()) continue;
+                        
+                        // 같은 종류끼리만 반응
+                        if (p1.type !== p2.type) continue;
+                        
+                        // 운동 에너지 난수 생성 (온도에 따른 구간)
+                        let range, activationEnergy;
+                        if (p1.type === 'A') {
+                            range = rangeA;
+                            activationEnergy = forwardEa;
+                        } else {
+                            range = rangeB;
+                            activationEnergy = reverseEa;
+                        }
+                        
+                        // 범위 내 정수 난수 생성
+                        const energy = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+                        
+                        // 운동 에너지가 활성화 에너지 이상이면 반응
+                        if (energy >= activationEnergy) {
+                            p1.lastCollision = now;
+                            p2.lastCollision = now;
+                            
+                            if (p1.type === 'A') {
+                                // 정반응: 2A → 2B
+                                p1.type = 'B';
+                                p2.type = 'B';
+                            } else {
+                                // 역반응: 2B → 2A
+                                p1.type = 'A';
+                                p2.type = 'A';
+                            }
+                            
+                            p1.glowEffect = 1;
+                            p2.glowEffect = 1;
+                            p1.createdAt = now;
+                            p2.createdAt = now;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // ===== 활성화 에너지를 넘을 확률 계산 =====
+        function calculateProbability(range, activationEnergy) {
+            const totalRange = range.max - range.min + 1;
+            if (totalRange <= 0) return 0;
+            
+            const successRange = Math.max(0, range.max - activationEnergy + 1);
+            return (successRange / totalRange) * 100;
+        }
+        
+        // ===== 그래프 그리기 =====
+        function drawGraph(canvasId, datasets, colors, minVal, maxVal, hideYLabels = false) {
+            const gc = document.getElementById(canvasId);
+            const gctx = gc.getContext('2d');
+            
+            const dpr = window.devicePixelRatio || 1;
+            gc.width = gc.offsetWidth * dpr;
+            gc.height = gc.offsetHeight * dpr;
+            gctx.scale(dpr, dpr);
+            
+            const w = gc.offsetWidth;
+            const h = gc.offsetHeight;
+            const pad = { l: hideYLabels ? 10 : 40, r: 10, t: 10, b: 10 };
+            const gw = w - pad.l - pad.r;
+            const gh = h - pad.t - pad.b;
+            
+            gctx.clearRect(0, 0, w, h);
+            
+            // 그리드
+            gctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            gctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const y = pad.t + gh * i / 4;
+                gctx.beginPath();
+                gctx.moveTo(pad.l, y);
+                gctx.lineTo(w - pad.r, y);
+                gctx.stroke();
+            }
+            
+            // Y축 레이블
+            if (!hideYLabels) {
+                gctx.fillStyle = '#888';
+                gctx.font = '10px sans-serif';
+                gctx.textAlign = 'right';
+                for (let i = 0; i <= 4; i++) {
+                    const y = pad.t + gh * i / 4;
+                    const val = maxVal - (maxVal - minVal) * i / 4;
+                    gctx.fillText(val.toFixed(1), pad.l - 5, y + 4);
+                }
+            }
+            
+            // 데이터 그리기
+            const isMulti = Array.isArray(datasets[0]);
+            const arrs = isMulti ? datasets : [datasets];
+            const cols = Array.isArray(colors) ? colors : [colors];
+            
+            arrs.forEach((data, idx) => {
+                if (data.length < 2) return;
+                
+                gctx.beginPath();
+                gctx.strokeStyle = cols[idx % cols.length];
+                gctx.lineWidth = 2;
+                
+                for (let i = 0; i < data.length; i++) {
+                    const x = pad.l + gw * i / (GRAPH_POINTS - 1);
+                    const ny = (data[i] - minVal) / (maxVal - minVal);
+                    const y = pad.t + gh * (1 - Math.max(0, Math.min(1, ny)));
+                    
+                    if (i === 0) gctx.moveTo(x, y);
+                    else gctx.lineTo(x, y);
+                }
+                gctx.stroke();
+            });
+        }
+        
+        // ===== 메인 루프 =====
+        function update() {
+            // 에너지 범위 업데이트
+            const ranges = getEnergyRange(temperature);
+            rangeA = ranges.A;
+            rangeB = ranges.B;
+            
+            if (isPlaying) {
+                particles.forEach(p => p.update());
+                handleCollisions();
+            }
+            
+            // 통계 계산
+            const countA = particles.filter(p => p.type === 'A').length;
+            const countB = particles.filter(p => p.type === 'B').length;
+            
+            // 이동 평균
+            historyA.push(countA);
+            historyB.push(countB);
+            if (historyA.length > MOVING_AVG_FRAMES) historyA.shift();
+            if (historyB.length > MOVING_AVG_FRAMES) historyB.shift();
+            
+            const avgA = historyA.reduce((a, b) => a + b, 0) / historyA.length;
+            const avgB = historyB.reduce((a, b) => a + b, 0) / historyB.length;
+            
+            // K 계산
+            let K = 0;
+            if (avgA > 0.1) K = avgB / avgA;
+            
+            historyK.push(K);
+            if (historyK.length > MOVING_AVG_FRAMES) historyK.shift();
+            const avgK = historyK.reduce((a, b) => a + b, 0) / historyK.length;
+            
+            // UI 업데이트
+            document.getElementById('countA').textContent = countA;
+            document.getElementById('countB').textContent = countB;
+            document.getElementById('totalCount').textContent = particles.length;
+            document.getElementById('kValue').textContent = avgK.toFixed(2);
+            
+            // 확률 계산
+            const probA = calculateProbability(rangeA, forwardEa);
+            const probB = calculateProbability(rangeB, reverseEa);
+            
+            // 그래프 데이터 업데이트
+            if (isPlaying) {
+                graphDataK.push(avgK);
+                graphDataA.push(avgA);
+                graphDataB.push(avgB);
+                graphDataProbA.push(probA);
+                graphDataProbB.push(probB);
+                
+                if (graphDataK.length > GRAPH_POINTS) {
+                    graphDataK.shift();
+                    graphDataA.shift();
+                    graphDataB.shift();
+                    graphDataProbA.shift();
+                    graphDataProbB.shift();
+                }
+            }
+            
+            // 그리기
+            draw();
+            
+            // 그래프 그리기
+            const maxK = Math.max(...graphDataK, 0.5) * 1.2 + 0.1;
+            drawGraph('graphK', graphDataK, '#00f2fe', 0, maxK);
+            
+            const maxP = Math.max(...graphDataA, ...graphDataB, 50) * 1.1 + 10;
+            drawGraph('graphParticles', [graphDataA, graphDataB], ['#4facfe', '#fe4f4f'], 0, maxP);
+            
+            drawGraph('graphProb', [graphDataProbA, graphDataProbB], ['#4facfe', '#fe4f4f'], 0, 100, true);
+            
+            requestAnimationFrame(update);
+        }
+        
+        function draw() {
+            const currentWidth = canvas.width * (volume / 100);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 비활성(축소된) 영역 배경
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 실제 활성 용기 영역
+            ctx.fillStyle = 'rgba(0, 40, 80, 0.35)';
+            ctx.fillRect(0, 0, currentWidth, canvas.height);
+            
+            // 입자 그리기
+            particles.forEach(p => p.draw());
+            
+            // 활성 용기 테두리
+            ctx.strokeStyle = '#4facfe';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(1, 1, currentWidth - 2, canvas.height - 2);
+
+            // 피스톤(벽) 표시 (부피가 100% 미만일 때)
+            if (volume < 100) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.fillRect(currentWidth, 0, canvas.width - currentWidth, canvas.height);
+
+                ctx.fillStyle = '#00f2fe';
+                ctx.fillRect(currentWidth - 4, 0, 8, canvas.height);
+            }
+        }
+        
+        // ===== 컨트롤 함수 =====
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playBtn');
+            const badge = document.getElementById('statusBadge');
+            
+            if (isPlaying) {
+                btn.textContent = '⏸ 정지';
+                btn.classList.remove('paused');
+                btn.classList.add('playing');
+                badge.textContent = '▶ 재생 중';
+                badge.classList.remove('paused');
+                badge.classList.add('playing');
+            } else {
+                btn.textContent = '▶ 재생';
+                btn.classList.remove('playing');
+                btn.classList.add('paused');
+                badge.textContent = '⏸ 정지';
+                badge.classList.remove('playing');
+                badge.classList.add('paused');
+            }
+        }
+        
+        function addParticles(type, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(type));
+            }
+        }
+        
+        function removeParticles(type, count) {
+            let removed = 0;
+            for (let i = particles.length - 1; i >= 0 && removed < count; i--) {
+                if (particles[i].type === type) {
+                    particles.splice(i, 1);
+                    removed++;
+                }
+            }
+        }
+        
+        function resetSimulation() {
+            isPlaying = false;
+            const btn = document.getElementById('playBtn');
+            const badge = document.getElementById('statusBadge');
+            btn.textContent = '▶ 재생';
+            btn.classList.remove('playing');
+            btn.classList.add('paused');
+            badge.textContent = '⏸ 정지';
+            badge.classList.remove('playing');
+            badge.classList.add('paused');
+            
+            temperature = 300;
+            document.getElementById('temperature').value = 300;
+            document.getElementById('tempValue').textContent = 300;
+
+            volume = 100;
+            document.getElementById('volumeSlider').value = 100;
+            document.getElementById('volumeValue').textContent = 100;
+            
+            initParticles();
+        }
+        
+        // ===== 이벤트 리스너 =====
+        document.getElementById('temperature').addEventListener('input', (e) => {
+            temperature = parseInt(e.target.value);
+            document.getElementById('tempValue').textContent = temperature;
+        });
+
+        // 부피 슬라이더 이벤트 리스너
+        document.getElementById('volumeSlider').addEventListener('input', (e) => {
+            volume = parseInt(e.target.value);
+            document.getElementById('volumeValue').textContent = volume;
+            clampParticlesToBounds();
+        });
+        
+        document.querySelectorAll('input[name="reactionType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                isExothermic = e.target.value === 'exothermic';
+                updateReactionDisplay();
+            });
+        });
+        
+        // ===== 시작 =====
+        resizeCanvas();
+        updateReactionDisplay();
+        initParticles();
+        update();
+    </script>
+</body>
+</html>
